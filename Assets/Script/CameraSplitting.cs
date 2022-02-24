@@ -1,18 +1,24 @@
+using System;
 using System.Linq;
+
 using System.Collections.Generic;
 using UnityEngine;
 
-public class CameraSplitting : MonoBehaviour
-{
+public class CameraSplitting : MonoBehaviour {
 
     public int nbCameras = 1;
 
     private List<Camera> cameras = new List<Camera>();
     private Camera[,] cameraGrid;
 
+    public EventHandler<HoverEventArgs> eventHandler;
+
+
+    private Camera currentCamera;
+
 
     // Start is called before the first frame update
-    void Start() { 
+    void Start() {
 
         int tableSize = Mathf.CeilToInt(Mathf.Sqrt(nbCameras));
 
@@ -22,7 +28,8 @@ public class CameraSplitting : MonoBehaviour
         for (int i = 0; i < nbCameras; i++) {
             GameObject cameraGO = new GameObject { name = "Camera" + (i + 1) };
             Camera camera = cameraGO.AddComponent<Camera>();
-            camera.GetComponent<Skybox>().enabled = false;
+            camera.clearFlags = CameraClearFlags.SolidColor;
+            camera.backgroundColor = Color.blue;
 
             cameras.Add(camera);
 
@@ -46,26 +53,81 @@ public class CameraSplitting : MonoBehaviour
     }
 
     // Update is called once per frame
-    void Update()
-    {
+    void Update() {
         GetCameraFromMouse();
     }
 
     void GetCameraFromMouse() {
+
 
         Vector2 mousePosition = Camera.main.ScreenToViewportPoint(Input.mousePosition);
 
         Camera selectedCamera = cameras.Find(cam => cam.rect.x < mousePosition.x && cam.rect.x + cam.rect.width > mousePosition.x && cam.rect.y < mousePosition.y && cam.rect.y + cam.rect.height > mousePosition.y);
 
 
+
+        if (currentCamera == null && selectedCamera != null) {
+
+            currentCamera = selectedCamera;
+
+            HoverEventArgs e = new HoverEventArgs();
+            e.NewCamera = selectedCamera;
+            eventHandler += OnHovered;
+
+            eventHandler?.Invoke(this, e);
+
+            eventHandler = null;
+        }
+
+        else if (currentCamera != selectedCamera && selectedCamera != null) {
+
+            
+            HoverEventArgs e = new HoverEventArgs();
+
+            e.LastCamera = currentCamera;
+            e.NewCamera = selectedCamera;
+
+            eventHandler += OnHoverExit;
+            eventHandler += OnHovered;
+
+            eventHandler?.Invoke(this, e);
+
+            eventHandler = null;
+
+
+            currentCamera = selectedCamera;
+        }
+
+
+        else if (currentCamera != null && selectedCamera == null) { 
+
+
+            HoverEventArgs e = new HoverEventArgs();
+            e.LastCamera = currentCamera;
+
+            eventHandler += OnHoverExit;
+
+            eventHandler?.Invoke(this, e);
+
+            eventHandler = null;
+
+            currentCamera = null;
+        }
+
+
     }
 
-    void OnHovered(Camera camera) {
-        camera.backgroundColor = new Color();
+    void OnHovered(object sender, HoverEventArgs e) {
+        if (eventHandler != null) {
+            e.NewCamera.backgroundColor = Color.green;
+        }
     }
 
-    void OnHoverExit(Camera camera) {
 
+    void OnHoverExit(object sender, HoverEventArgs e) {
+        if (eventHandler != null) {
+            e.LastCamera.backgroundColor = Color.blue;
+        }
     }
 
     /// <summary>
@@ -76,15 +138,16 @@ public class CameraSplitting : MonoBehaviour
     /// <returns></returns>
     List<List<Camera>> GetOccupiedLines(int rc) {
 
-        List<List<Camera>> occupiedRows = new List<List<Camera>>(); 
+        List<List<Camera>> occupiedRows = new List<List<Camera>>();
 
         if (rc != 0 && rc != 1) {
             Debug.LogError("Value passed as a parameter must be 0 or 1");
+            return null;
         }
 
 
-        for (int j = 0; j < cameraGrid.GetLength(1-rc); j++) {
-            
+        for (int j = 0; j < cameraGrid.GetLength(1 - rc); j++) {
+
             int count = 0;
             List<Camera> cameraInRow = new List<Camera>();
 
@@ -94,7 +157,7 @@ public class CameraSplitting : MonoBehaviour
                     cameraInRow.Add(cameraGrid[i, j]);
                 }
 
-                else { 
+                else {
                     count++;
                 }
             }
@@ -114,11 +177,19 @@ public class CameraSplitting : MonoBehaviour
     int GetLongestLength(List<List<Camera>> list) {
 
         List<int> countList = new List<int>();
-            
+
         list.ForEach(delegate (List<Camera> sublist) {
             countList.Add(sublist.Count);
         });
 
         return countList.Max();
-    }   
+    }
 }
+
+public class HoverEventArgs : EventArgs {
+    public Camera LastCamera { get; set; }
+
+    public Camera NewCamera { get; set; }
+    public Color Color {get; set;}
+}
+
